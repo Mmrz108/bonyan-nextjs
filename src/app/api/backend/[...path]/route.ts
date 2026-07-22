@@ -11,55 +11,24 @@ import {
   withAuthCookies,
   withClearedAuthCookies,
 } from "@/lib/auth/cookies";
-import { proxyToDjango, refreshWithDjango } from "@/lib/auth/django";
 import {
-  filterUpstreamHeaders,
-  sanitizeBackendProxyPath,
-} from "@/lib/auth/proxy-path";
+  AuthServiceError,
+  refreshLocal,
+  requireUserFromAccess,
+} from "@/lib/auth/local";
+import { sanitizeBackendProxyPath } from "@/lib/auth/proxy-path";
+import { handleLocalApi } from "@/lib/api/local-backend";
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
-async function forward(
-  request: NextRequest,
-  pathSegments: string[],
-  accessToken: string,
-): Promise<Response> {
-  const search = request.nextUrl.search;
-  const path = `${sanitizeBackendProxyPath(pathSegments)}${search}`;
-  const contentType = request.headers.get("content-type");
-  const hasBody = request.method !== "GET" && request.method !== "HEAD";
-
-  const headers = new Headers();
-  if (contentType) headers.set("Content-Type", contentType);
-
-  return proxyToDjango(path, {
-    method: request.method,
-    accessToken,
-    headers,
-    body: hasBody ? await request.arrayBuffer() : undefined,
-  });
-}
-
-function passthrough(
-  upstream: Response,
-  mutate?: (res: NextResponse) => NextResponse,
-) {
-  let response = new NextResponse(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: filterUpstreamHeaders(upstream.headers),
-  });
-  if (mutate) response = mutate(response);
-  return response;
-}
-
 async function handle(request: NextRequest, context: RouteContext) {
   const { path: pathSegments } = await context.params;
 
+  let pathname: string;
   try {
-    sanitizeBackendProxyPath(pathSegments);
+    pathname = sanitizeBackendProxyPath(pathSegments);
   } catch {
     return NextResponse.json({ detail: "Invalid API path." }, { status: 400 });
   }
@@ -71,11 +40,9 @@ async function handle(request: NextRequest, context: RouteContext) {
 
   if (!access && refresh) {
     try {
-      const refreshed = await refreshWithDjango(refresh);
+      const refreshed = await refreshLocal(refresh);
       access = refreshed.access;
-      if (refreshed.refresh) {
-        refresh = refreshed.refresh;
-      }
+      if (refreshed.refresh) refresh = refreshed.refresh;
     } catch {
       return withClearedAuthCookies(
         NextResponse.json({ detail: "Session expired." }, { status: 401 }),
@@ -87,7 +54,6 @@ async function handle(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ detail: "Not authenticated." }, { status: 401 });
   }
 
-  let upstream = await forward(request, pathSegments, access);
   let nextAccess: string | null =
     access !== store.get(ACCESS_TOKEN_COOKIE)?.value ? access : null;
   let nextRefresh: string | null =
@@ -95,35 +61,71 @@ async function handle(request: NextRequest, context: RouteContext) {
       ? refresh
       : null;
 
-  if (upstream.status === 401 && refresh) {
-    try {
-      const refreshed = await refreshWithDjango(refresh);
-      nextAccess = refreshed.access;
-      if (refreshed.refresh) {
-        nextRefresh = refreshed.refresh;
-        refresh = refreshed.refresh;
+  let userId: string;
+  try {
+    const session = await requireUserFromAccess(access);
+    userId = session.id;
+  } catch (error) {
+    if (error instanceof AuthServiceError && error.status === 401 && refresh) {
+      try {
+        const refreshed = await refreshLocal(refresh);
+        nextAccess = refreshed.access;
+        if (refreshed.refresh) {
+          nextRefresh = refreshed.refresh;
+          refresh = refreshed.refresh;
+        }
+        const session = await requireUserFromAccess(refreshed.access);
+        userId = session.id;
+        access = refreshed.access;
+      } catch {
+        return withClearedAuthCookies(
+          NextResponse.json({ detail: "Session expired." }, { status: 401 }),
+        );
       }
-      upstream = await forward(request, pathSegments, refreshed.access);
-    } catch {
+    } else {
       return withClearedAuthCookies(
-        NextResponse.json({ detail: "Session expired." }, { status: 401 }),
+        NextResponse.json({ detail: "Not authenticated." }, { status: 401 }),
       );
     }
   }
 
-  return passthrough(upstream, (response) => {
-    if (nextAccess && nextRefresh) {
-      return withAuthCookies(
-        response,
-        { access: nextAccess, refresh: nextRefresh },
-        { rememberMe },
-      );
+  let body: unknown = undefined;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    const contentType = request.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        body = await request.json();
+      } catch {
+        body = undefined;
+      }
     }
-    if (nextAccess) {
-      return withAccessTokenCookie(response, nextAccess, rememberMe);
-    }
-    return response;
+  }
+
+  const upstream = await handleLocalApi(
+    request.method,
+    pathname,
+    request.nextUrl.search,
+    body,
+    userId,
+  );
+
+  const response = new NextResponse(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: upstream.headers,
   });
+
+  if (nextAccess && nextRefresh) {
+    return withAuthCookies(
+      response,
+      { access: nextAccess, refresh: nextRefresh },
+      { rememberMe },
+    );
+  }
+  if (nextAccess) {
+    return withAccessTokenCookie(response, nextAccess, rememberMe);
+  }
+  return response;
 }
 
 export const GET = handle;

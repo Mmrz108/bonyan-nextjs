@@ -7,7 +7,7 @@ import {
   withAuthCookies,
   withClearedAuthCookies,
 } from "@/lib/auth/cookies";
-import { DjangoApiError, refreshWithDjango } from "@/lib/auth/django";
+import { AuthServiceError, refreshLocal } from "@/lib/auth/local";
 
 export async function POST() {
   const store = await cookies();
@@ -20,7 +20,7 @@ export async function POST() {
   }
 
   try {
-    const data = await refreshWithDjango(refresh);
+    const data = await refreshLocal(refresh);
     const rememberMe = readRememberMeFlag(store.get(REMEMBER_ME_COOKIE)?.value);
     if (data.refresh) {
       return withAuthCookies(
@@ -35,19 +35,13 @@ export async function POST() {
       rememberMe,
     );
   } catch (error) {
-    if (error instanceof DjangoApiError) {
+    if (error instanceof AuthServiceError) {
       return withClearedAuthCookies(
-        NextResponse.json(
-          { detail: error.body?.detail ?? "Session expired." },
-          { status: 401 },
-        ),
+        NextResponse.json({ detail: error.message }, { status: 401 }),
       );
     }
     return withClearedAuthCookies(
-      NextResponse.json(
-        { detail: "Unable to refresh session." },
-        { status: 502 },
-      ),
+      NextResponse.json({ detail: "Unable to refresh session." }, { status: 500 }),
     );
   }
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DjangoApiError, loginWithDjango } from "@/lib/auth/django";
+import { AuthServiceError, loginLocal } from "@/lib/auth/local";
 import { withAuthCookies } from "@/lib/auth/cookies";
 
 const loginBodySchema = z.object({
@@ -10,14 +10,14 @@ const loginBodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  let json: unknown;
+  let jsonBody: unknown;
   try {
-    json = await request.json();
+    jsonBody = await request.json();
   } catch {
     return NextResponse.json({ detail: "Invalid JSON body." }, { status: 400 });
   }
 
-  const parsed = loginBodySchema.safeParse(json);
+  const parsed = loginBodySchema.safeParse(jsonBody);
   if (!parsed.success) {
     return NextResponse.json({ detail: "Invalid credentials payload." }, { status: 400 });
   }
@@ -25,25 +25,21 @@ export async function POST(request: Request) {
   const { email, password, rememberMe } = parsed.data;
 
   try {
-    const data = await loginWithDjango(email, password);
+    const data = await loginLocal(email, password);
     const response = NextResponse.json({ user: data.user });
-    // Tokens stay in httpOnly cookies — never returned to browser JS.
     return withAuthCookies(
       response,
       { access: data.access, refresh: data.refresh },
       { rememberMe },
     );
   } catch (error) {
-    if (error instanceof DjangoApiError) {
-      const status = error.status === 401 ? 401 : error.status;
-      return NextResponse.json(
-        { detail: error.body?.detail ?? "Authentication failed." },
-        { status },
-      );
+    if (error instanceof AuthServiceError) {
+      return NextResponse.json({ detail: error.message }, { status: error.status });
     }
+    console.error(error);
     return NextResponse.json(
-      { detail: "Unable to reach authentication service." },
-      { status: 502 },
+      { detail: "Unable to complete authentication." },
+      { status: 500 },
     );
   }
 }

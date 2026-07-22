@@ -12,10 +12,10 @@ import {
   withClearedAuthCookies,
 } from "@/lib/auth/cookies";
 import {
-  DjangoApiError,
-  fetchCurrentUser,
-  refreshWithDjango,
-} from "@/lib/auth/django";
+  AuthServiceError,
+  getUserFromAccessToken,
+  refreshLocal,
+} from "@/lib/auth/local";
 
 function withRefreshedSession(
   body: unknown,
@@ -47,9 +47,9 @@ export async function GET() {
 
   try {
     if (!access && refresh) {
-      const refreshed = await refreshWithDjango(refresh);
+      const refreshed = await refreshLocal(refresh);
       access = refreshed.access;
-      const user = await fetchCurrentUser(access);
+      const user = await getUserFromAccessToken(access);
       return withRefreshedSession(
         { user },
         { access, refresh: refreshed.refresh },
@@ -58,12 +58,12 @@ export async function GET() {
     }
 
     try {
-      const user = await fetchCurrentUser(access!);
+      const user = await getUserFromAccessToken(access!);
       return NextResponse.json({ user });
     } catch (error) {
-      if (error instanceof DjangoApiError && error.status === 401 && refresh) {
-        const refreshed = await refreshWithDjango(refresh);
-        const user = await fetchCurrentUser(refreshed.access);
+      if (error instanceof AuthServiceError && error.status === 401 && refresh) {
+        const refreshed = await refreshLocal(refresh);
+        const user = await getUserFromAccessToken(refreshed.access);
         return withRefreshedSession(
           { user },
           { access: refreshed.access, refresh: refreshed.refresh },
@@ -73,19 +73,14 @@ export async function GET() {
       throw error;
     }
   } catch (error) {
-    if (error instanceof DjangoApiError) {
+    if (error instanceof AuthServiceError) {
       return withClearedAuthCookies(
-        NextResponse.json(
-          { detail: error.body?.detail ?? "Authentication failed." },
-          { status: error.status === 401 ? 401 : error.status },
-        ),
+        NextResponse.json({ detail: error.message }, { status: error.status }),
       );
     }
+    console.error(error);
     return withClearedAuthCookies(
-      NextResponse.json(
-        { detail: "Unable to reach authentication service." },
-        { status: 502 },
-      ),
+      NextResponse.json({ detail: "Authentication failed." }, { status: 500 }),
     );
   }
 }

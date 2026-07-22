@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  // Dedicated name so a shell DATABASE_URL (e.g. Django Postgres) does not break SQLite.
+  url      = env("BONYAN_DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String   @default("")
+  lastName     String   @default("")
+  phoneNumber  String   @default("")
+  isActive     Boolean  @default(true)
+  isVerified   Boolean  @default(true)
+  isStaff      Boolean  @default(false)
+  /// JSON array of role codes, e.g. ["ADMIN"]
+  rolesJson    String   @default("[\"CLIENT\"]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  projectsAsClient Project[] @relation("ProjectClientUser")
+  memberships      ProjectMember[]
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  nameAr    String   @default("")
+  status    String   @default("active")
+  taxId     String   @default("")
+  city      String   @default("")
+  region    String   @default("")
+  countryCode String @default("OM")
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contracts Contract[]
+  projects  Project[]
+}
+
+model Contract {
+  id                     String   @id @default(cuid())
+  clientId               String
+  client                 Client   @relation(fields: [clientId], references: [id])
+  referenceCode          String   @unique
+  title                  String
+  titleAr                String   @default("")
+  status                 String   @default("active")
+  plannedVisitsPerMonth  Int?
+  scopeSummary           String   @default("")
+  notes                  String   @default("")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  projects Project[]
+}
+
+model Project {
+  id                      String   @id @default(cuid())
+  code                    String   @unique
+  name                    String
+  nameAr                  String   @default("")
+  description             String   @default("")
+  clientId                String?
+  client                  Client?  @relation(fields: [clientId], references: [id])
+  contractId              String?
+  contract                Contract? @relation(fields: [contractId], references: [id])
+  status                  String   @default("planning")
+  projectType             String   @default("other")
+  supervisionType         String   @default("visit_basis")
+  assignedRegion          String   @default("")
+  location                String   @default("")
+  address                 String   @default("")
+  latitude                String?
+  longitude               String?
+  startDate               String?
+  expectedCompletionDate  String?
+  clientUserId            String?
+  clientUser              User?    @relation("ProjectClientUser", fields: [clientUserId], references: [id])
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  members    ProjectMember[]
+  stages     ProjectStage[]
+  siteVisits SiteVisit[]
+}
+
+model ProjectMember {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberRole String   @default("viewer")
+  isActive   Boolean  @default(true)
+  joinedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([projectId, userId, memberRole])
+}
+
+model ProjectStage {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  nameAr          String   @default("")
+  description     String   @default("")
+  order           Int      @default(1)
+  status          String   @default("not_started")
+  startDate       String?
+  completionDate  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model StageTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  nameAr      String   @default("")
+  description String   @default("")
+  order       Int      @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteVisit {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status        String   @default("scheduled")
+  scheduledDate String?
+  title         String   @default("")
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Issue {
+  id        String   @id @default(cuid())
+  projectId String?
+  status    String   @default("open")
+  title     String   @default("")
+  dueDate   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Report {
+  id        String   @id @default(cuid())
+  projectId String?
+  status    String   @default("draft")
+  title     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
