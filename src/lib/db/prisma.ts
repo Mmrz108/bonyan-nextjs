@@ -2,15 +2,24 @@ import "server-only";
 
 import { PrismaClient } from "@prisma/client";
 
-function resolveDatabaseUrl(): string {
-  if (process.env.BONYAN_DATABASE_URL) {
-    return process.env.BONYAN_DATABASE_URL;
-  }
-  // Vercel serverless: only /tmp is writable (ephemeral — re-seeded on cold start).
+/**
+ * On Vercel only `/tmp` is writable. Relative `file:./dev.db` (from local env)
+ * must not be used in production or Prisma fails with EROFS.
+ */
+export function resolveDatabaseUrl(): string {
+  const configured = process.env.BONYAN_DATABASE_URL;
+
   if (process.env.VERCEL) {
+    if (configured && !configured.startsWith("file:")) {
+      return configured;
+    }
+    if (configured?.startsWith("file:/tmp")) {
+      return configured;
+    }
     return "file:/tmp/bonyan.db";
   }
-  return "file:./dev.db";
+
+  return configured || "file:./dev.db";
 }
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };

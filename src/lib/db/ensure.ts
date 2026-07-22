@@ -3,7 +3,7 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, resolveDatabaseUrl } from "@/lib/db/prisma";
 
 let ready: Promise<void> | null = null;
 
@@ -20,9 +20,7 @@ const DEFAULT_STAGES = [
 ];
 
 function ensureSqliteFileExists() {
-  const url =
-    process.env.BONYAN_DATABASE_URL ||
-    (process.env.VERCEL ? "file:/tmp/bonyan.db" : "file:./dev.db");
+  const url = resolveDatabaseUrl();
   if (!url.startsWith("file:")) return;
 
   const dbPath = url.replace(/^file:/, "");
