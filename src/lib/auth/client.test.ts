@@ -128,9 +128,9 @@ describe("apiFetch", () => {
     const response = await apiFetch("/projects/");
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/projects/");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/projects");
     expect(fetchMock.mock.calls[1][0]).toBe("/api/auth/refresh");
-    expect(fetchMock.mock.calls[2][0]).toBe("/api/backend/projects/");
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/backend/projects");
   });
 
   it("does not retry when refresh fails", async () => {
@@ -144,5 +144,15 @@ describe("apiFetch", () => {
     const response = await apiFetch("/projects/");
     expect(response.status).toBe(401);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("strips trailing slashes before calling the BFF", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/projects/?status=active");
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/api/backend/projects?status=active",
+    );
   });
 });

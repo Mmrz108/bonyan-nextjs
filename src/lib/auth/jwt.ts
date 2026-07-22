@@ -38,16 +38,49 @@ export function toAuthUser(user: User): AuthUser {
   };
 }
 
-export async function signAccessToken(userId: string): Promise<string> {
-  return new SignJWT({ typ: "access", sub: userId })
+type TokenClaims = {
+  userId: string;
+  email: string;
+  roles: RoleCode[];
+};
+
+function parseRoles(value: unknown): RoleCode[] {
+  if (!Array.isArray(value)) return ["CLIENT"];
+  return value.filter((r): r is RoleCode => typeof r === "string") as RoleCode[];
+}
+
+export async function signAccessToken(user: {
+  id: string;
+  email: string;
+  rolesJson: string;
+}): Promise<string> {
+  let roles: RoleCode[] = [];
+  try {
+    roles = JSON.parse(user.rolesJson) as RoleCode[];
+  } catch {
+    roles = ["CLIENT"];
+  }
+  return new SignJWT({
+    typ: "access",
+    sub: user.id,
+    email: user.email,
+    roles,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${ACCESS_TOKEN_MAX_AGE_SECONDS}s`)
     .sign(secretKey());
 }
 
-export async function signRefreshToken(userId: string): Promise<string> {
-  return new SignJWT({ typ: "refresh", sub: userId })
+export async function signRefreshToken(user: {
+  id: string;
+  email: string;
+}): Promise<string> {
+  return new SignJWT({
+    typ: "refresh",
+    sub: user.id,
+    email: user.email,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${REFRESH_TOKEN_MAX_AGE_SECONDS}s`)
@@ -56,11 +89,17 @@ export async function signRefreshToken(userId: string): Promise<string> {
 
 export async function verifyAccessToken(
   token: string,
-): Promise<{ userId: string } | null> {
+): Promise<TokenClaims | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey());
     if (payload.typ !== "access" || typeof payload.sub !== "string") return null;
-    return { userId: payload.sub };
+    const email =
+      typeof payload.email === "string" ? payload.email.toLowerCase() : "";
+    return {
+      userId: payload.sub,
+      email,
+      roles: parseRoles(payload.roles),
+    };
   } catch {
     return null;
   }
@@ -68,11 +107,15 @@ export async function verifyAccessToken(
 
 export async function verifyRefreshToken(
   token: string,
-): Promise<{ userId: string } | null> {
+): Promise<{ userId: string; email: string } | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey());
     if (payload.typ !== "refresh" || typeof payload.sub !== "string") return null;
-    return { userId: payload.sub };
+    return {
+      userId: payload.sub,
+      email:
+        typeof payload.email === "string" ? payload.email.toLowerCase() : "",
+    };
   } catch {
     return null;
   }

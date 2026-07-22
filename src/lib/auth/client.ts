@@ -82,8 +82,13 @@ export async function apiFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  const url = `/api/backend${normalized}`;
+  // Strip trailing slashes (keep querystring) to avoid Next.js 308 redirects
+  // that break some browsers / credentialed fetches on Vercel.
+  const raw = path.startsWith("/") ? path : `/${path}`;
+  const qIndex = raw.indexOf("?");
+  const pathname = (qIndex >= 0 ? raw.slice(0, qIndex) : raw).replace(/\/+$/, "") || "/";
+  const query = qIndex >= 0 ? raw.slice(qIndex) : "";
+  const url = `/api/backend${pathname}${query}`;
 
   const first = await fetch(url, {
     ...init,

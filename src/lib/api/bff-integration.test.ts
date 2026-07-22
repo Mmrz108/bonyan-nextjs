@@ -20,7 +20,7 @@ describe("BFF apiFetch", () => {
 
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/backend/site-visits/1/",
+      "/api/backend/site-visits/1",
       expect.objectContaining({
         method: "GET",
         credentials: "same-origin",
@@ -39,7 +39,7 @@ describe("BFF apiFetch", () => {
     const response = await apiFetch("/reports/");
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/reports/");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/backend/reports");
     expect(fetchMock.mock.calls[1][0]).toBe("/api/auth/refresh");
   });
 });

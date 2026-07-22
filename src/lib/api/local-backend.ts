@@ -144,6 +144,78 @@ export async function handleLocalApi(
     return json({ status: "ok", backend: "nextjs" });
   }
 
+  // -------- dashboard summary (single round-trip for Vercel) --------
+  if (method === "GET" && path === "/dashboard/summary") {
+    const today = params.get("today") || new Date().toISOString().slice(0, 10);
+    const [
+      totalProjects,
+      activeProjects,
+      completedProjects,
+      upcomingVisits,
+      submittedReports,
+      underReviewReports,
+      openIssues,
+      overdueOpen,
+      overdueInProgress,
+      recentVisits,
+      upcomingList,
+    ] = await Promise.all([
+      prisma.project.count(),
+      prisma.project.count({ where: { status: "active" } }),
+      prisma.project.count({ where: { status: "completed" } }),
+      prisma.siteVisit.count({
+        where: { status: "scheduled", scheduledDate: { gte: today } },
+      }),
+      prisma.report.count({ where: { status: "submitted" } }),
+      prisma.report.count({ where: { status: "under_review" } }),
+      prisma.issue.count({ where: { status: "open" } }),
+      prisma.issue.count({
+        where: { status: "open", dueDate: { lt: today } },
+      }),
+      prisma.issue.count({
+        where: { status: "in_progress", dueDate: { lt: today } },
+      }),
+      prisma.siteVisit.findMany({
+        where: { status: "completed" },
+        orderBy: { scheduledDate: "desc" },
+        take: 8,
+        include: { project: true },
+      }),
+      prisma.siteVisit.findMany({
+        where: { status: "scheduled", scheduledDate: { gte: today } },
+        orderBy: { scheduledDate: "asc" },
+        take: 8,
+        include: { project: true },
+      }),
+    ]);
+
+    const mapVisit = (v: (typeof recentVisits)[number]) => ({
+      id: v.id,
+      project: v.projectId,
+      project_name: v.project.name,
+      status: v.status,
+      scheduled_date: v.scheduledDate,
+      title: v.title,
+      notes: v.notes,
+      created_at: v.createdAt.toISOString(),
+      updated_at: v.updatedAt.toISOString(),
+    });
+
+    return json({
+      metrics: {
+        totalProjects,
+        activeProjects,
+        completedProjects,
+        upcomingSiteVisits: upcomingVisits,
+        pendingReports: submittedReports + underReviewReports,
+        openIssues,
+        overdueIssues: overdueOpen + overdueInProgress,
+      },
+      recentSiteVisits: recentVisits.map(mapVisit),
+      upcomingSiteVisits: upcomingList.map(mapVisit),
+    });
+  }
+
   // -------- stage-templates --------
   if (path === "/stage-templates") {
     if (method === "GET") {

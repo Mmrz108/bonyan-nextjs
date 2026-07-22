@@ -7,6 +7,9 @@ import { prisma } from "@/lib/db/prisma";
 
 let ready: Promise<void> | null = null;
 
+/** Stable across Vercel serverless instances so JWT subject stays valid. */
+export const DEMO_ADMIN_ID = "bonyan_demo_admin_000000000001";
+
 const DEFAULT_STAGES = [
   "Earthwork Excavation",
   "Foundation steel fabrication and formwork",
@@ -44,18 +47,30 @@ export async function ensureDatabaseReady(): Promise<void> {
         process.env.DEMO_ADMIN_EMAIL || "admin@bonyan.local"
       ).toLowerCase();
       const password = process.env.DEMO_ADMIN_PASSWORD || "Admin123!@#";
+      const passwordHash = await bcrypt.hash(password, 10);
 
       const existing = await prisma.user.findUnique({ where: { email } });
       if (!existing) {
         await prisma.user.create({
           data: {
+            id: DEMO_ADMIN_ID,
             email,
-            passwordHash: await bcrypt.hash(password, 10),
+            passwordHash,
             firstName: "Bonyan",
             lastName: "Admin",
             isStaff: true,
             isActive: true,
             isVerified: true,
+            rolesJson: JSON.stringify(["ADMIN", "SUPER_ADMIN"]),
+          },
+        });
+      } else {
+        await prisma.user.update({
+          where: { email },
+          data: {
+            passwordHash,
+            isActive: true,
+            isStaff: true,
             rolesJson: JSON.stringify(["ADMIN", "SUPER_ADMIN"]),
           },
         });
