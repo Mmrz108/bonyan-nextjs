@@ -1,26 +1,149 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --brand: #0b3d3a;
+  --brand-strong: #072e2c;
+  --brand-soft: #9eb9b4;
+  --brand-tint: #e7f1ef;
+  --brand-contrast: #f7faf9;
+  --accent: #b08d57;
+  --ink: #15201d;
+  --ink-soft: #2c3a36;
+  --muted: #667570;
+  --line: #d3ddd8;
+  --line-strong: #b7c4be;
+  --surface: #eef3f1;
+  --surface-muted: #e2ebe7;
+  --surface-elevated: #fbfcfb;
+  --danger: #9b2c2c;
+  --danger-strong: #7f1d1d;
+  --danger-soft: #f0c4c4;
+  --danger-tint: #fdf2f2;
+  --success: #1f6f54;
+  --success-soft: #b7d9cb;
+  --success-tint: #edf7f2;
+  --background: var(--surface);
+  --foreground: var(--ink);
+
+  /* Marketing home — energetic teal + gold (aligned with app brand) */
+  --home-teal: #0f8a78;
+  --home-teal-strong: #0b6b5d;
+  --home-teal-soft: #6ed4c3;
+  --home-gold: #e4a018;
+  --home-gold-strong: #c9890f;
+  --home-gold-soft: #f0c96a;
+  --home-cta: var(--home-gold);
+  --home-cta-strong: var(--home-gold-strong);
+  --home-action: var(--home-teal);
+  --home-action-strong: var(--home-teal-strong);
+  --home-ink: #101828;
+  --home-ink-soft: #243044;
+  --home-muted: #5b6b7c;
+  --home-line: #d7e0ea;
+  --home-paper: #f5f7fa;
+  --home-mist: #eef3f0;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-arabic: var(--font-arabic);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background-color: var(--surface);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 0% -20%, rgba(11, 61, 58, 0.08), transparent 55%),
+    radial-gradient(ellipse 90% 60% at 100% 0%, rgba(176, 141, 87, 0.08), transparent 45%),
+    linear-gradient(180deg, rgba(251, 252, 251, 0.55), rgba(238, 243, 241, 0.95)),
+    repeating-linear-gradient(
+      -18deg,
+      rgba(21, 32, 29, 0.025) 0,
+      rgba(21, 32, 29, 0.025) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+  font-family: var(--font-sans), var(--font-arabic), sans-serif;
+}
+
+body[dir="rtl"] {
+  font-family: var(--font-arabic), var(--font-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--brand) 25%, white);
+}
+
+/* Marketing home surface */
+.home-site {
+  background-color: var(--home-paper);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(228, 160, 24, 0.1), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 0% 30%, rgba(15, 138, 120, 0.08), transparent 50%),
+    linear-gradient(180deg, #fbfcfe 0%, var(--home-paper) 40%, #eef3f0 100%);
+}
+
+.home-hero-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 0.6px, transparent 0.6px);
+  background-size: 3px 3px;
+  opacity: 0.35;
+  mix-blend-mode: soft-light;
+}
+
+.home-eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--home-gold-strong);
+}
+
+.home-title {
+  margin: 0;
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.85rem, 3vw, 2.65rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--home-ink);
+}
+
+.home-skill-bar {
+  transform-origin: inline-start;
+  animation: home-skill-fill 1.4s ease-out both;
+}
+
+@keyframes home-skill-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-skill-bar,
+  .home-site * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bonyan Frontend
 
-## Getting Started
+Next.js web console for the Bonyan construction supervision platform.
 
-First, run the development server:
+## Stack
+
+- Next.js 15 (App Router) + TypeScript
+- Tailwind CSS v4
+- TanStack Query
+- React Hook Form + Zod
+- next-intl (English / Arabic + RTL)
+- Vitest + Testing Library
+
+## Scripts
 
 ```bash
+npm install
+cp .env.example .env.local   # set API_URL to the Django backend
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm start
+npm run lint
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App runs at [http://localhost:3000](http://localhost:3000) and redirects to `/en/...` or `/ar/...`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Authentication
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+JWT auth is integrated with the Django API through a Next.js BFF so tokens never reach browser JavaScript:
 
-## Learn More
+| Browser call | Backend |
+|---|---|
+| `POST /api/auth/login` | `POST /api/v1/auth/login/` |
+| `POST /api/auth/logout` | `POST /api/v1/auth/logout/` |
+| `POST /api/auth/refresh` | `POST /api/v1/auth/refresh/` |
+| `GET /api/auth/me` | `GET /api/v1/auth/me/` |
+| ` /api/backend/*` | `/api/v1/*` (Bearer from httpOnly cookie) |
 
-To learn more about Next.js, take a look at the following resources:
+- Access + refresh tokens are stored in **httpOnly**, `SameSite=Lax` cookies (`secure` in production)
+- `AuthProvider` holds the current user (not tokens)
+- Middleware + client guards protect private routes
+- Expired access tokens are refreshed automatically (BFF `/me` + `/api/backend` proxy + client `apiFetch`)
+- Sidebar navigation is filtered by user roles
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Set `API_URL` (server-only) to the Django origin, e.g. `http://localhost:8000`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Structure
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+  app/api/auth/          # BFF auth routes
+  app/api/backend/       # Authenticated Django proxy
+  app/[locale]/
+    (auth)/login/
+    (app)/dashboard/
+  components/
+    layout/              # AppShell, Sidebar, TopNav
+    auth/                # LoginForm, guards
+    providers/           # Query + Auth
+  lib/auth/              # Roles, cookies, Django client, path guards
+messages/
+  en.json
+  ar.json
+```
