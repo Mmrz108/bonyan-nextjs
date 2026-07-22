@@ -17,9 +17,9 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      "connect-src 'self' https://*.tile.openstreetmap.org",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -31,8 +31,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Hide the Next.js "N" route indicator during local development.
   devIndicators: false,
-  // Required for the production Docker image (`.next/standalone`).
-  output: "standalone",
+  // Docker / self-host only. Vercel breaks with `output: "standalone"` (404).
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
   async headers() {
     return [
       {
